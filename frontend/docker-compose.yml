@@ -1,0 +1,22 @@
+services:
+  frontend:
+    build: .
+    container_name: dashboard-frontend
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      # Router dla Frontend (wszystko OPRÓCZ /api)
+      - "traefik.http.routers.dashboard-frontend.rule=Host(`dashboard.example.com`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard-frontend.entrypoints=websecure"
+      - "traefik.http.routers.dashboard-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dashboard-frontend.middlewares=authelia@file"
+      - "traefik.http.routers.dashboard-frontend.priority=1"
+      - "traefik.http.services.dashboard-frontend-svc.loadbalancer.server.port=80"
+      - "traefik.http.routers.dashboard-frontend.service=dashboard-frontend-svc"
+
+networks:
+  proxy:
+    external: true
