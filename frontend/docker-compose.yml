@@ -9,7 +9,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
       # Router dla Frontend (wszystko OPRÓCZ /api)
-      - "traefik.http.routers.dashboard-frontend.rule=Host(`dashboard.example.com`) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard-frontend.rule=Host(`dashboard.srv-ovh.pl`) && !PathPrefix(`/api`)"
       - "traefik.http.routers.dashboard-frontend.entrypoints=websecure"
       - "traefik.http.routers.dashboard-frontend.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dashboard-frontend.middlewares=authelia@file"

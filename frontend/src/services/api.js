@@ -21,4 +21,23 @@ export const stopContainer = (endpointId, containerId) =>
 export const restartContainer = (endpointId, containerId) => 
   api.post(`/containers/${endpointId}/${containerId}/restart`);
 
+// Settings
+export const getSettings = () => api.get('/settings');
+export const updateSetting = (key, value, type = 'string') => 
+  api.put(`/settings/${key}`, { value, type });
+
+// Uploads
+export const uploadBackground = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/uploads/background', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+export const getBackgrounds = () => api.get('/uploads/backgrounds');
+
+export const deleteBackground = (filename) => 
+  api.delete(`/uploads/background/${filename}`);
+
 export default api;

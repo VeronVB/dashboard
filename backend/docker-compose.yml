@@ -5,13 +5,16 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - ./data:/app/data          # SQLite persistence
+      - ./uploads:/app/uploads    # Custom ikony/background
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
       # Router dla API
-      - "traefik.http.routers.dashboard-api.rule=Host(`dashboard.example.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard-api.rule=Host(`dashboard.srv-ovh.pl`) && PathPrefix(`/api`)"
       - "traefik.http.routers.dashboard-api.entrypoints=websecure"
       - "traefik.http.routers.dashboard-api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dashboard-api.priority=100"
