@@ -19,8 +19,15 @@ services:
       - "traefik.http.routers.dashboard-api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dashboard-api.priority=100"
       - "traefik.http.routers.dashboard-api.service=dashboard-api-svc"
-      # Middleware: TYLKO authelia (bez stripprefix)
+      # Middleware: TYLKO authelia 
       - "traefik.http.routers.dashboard-api.middlewares=authelia@file"
+      # --- ROUTER 2: ZASOBY STATYCZNE (Publiczne, bez Authelii) ---
+      # To jest kluczowa zmiana. Kierujemy ruch /uploads do tego samego kontenera.
+      - "traefik.http.routers.dashboard-static.rule=Host(`dashboard.srv-ovh.pl`) && PathPrefix(`/uploads`)"
+      - "traefik.http.routers.dashboard-static.entrypoints=websecure"
+      - "traefik.http.routers.dashboard-static.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dashboard-static.service=dashboard-api-svc"
+      # UWAGA: Brak middleware authelia tutaj, aby tło ładowało się bez logowania
       # Serwis
       - "traefik.http.services.dashboard-api-svc.loadbalancer.server.port=3001"
 

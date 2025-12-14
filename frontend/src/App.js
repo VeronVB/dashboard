@@ -28,6 +28,10 @@ function AppContent() {
             e.preventDefault();
             navigate('/containers');
             break;
+          case '3':
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent('openSearch'));
+            break;
           case '0':
             e.preventDefault();
             navigate('/settings');
@@ -46,7 +50,7 @@ function AppContent() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundImage: settings.background_url ? `url(/api${settings.background_url})` : 'none',
+        backgroundImage: settings.background_url ? `url(${settings.background_url})` : 'none',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',

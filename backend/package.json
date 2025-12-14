@@ -11,11 +11,13 @@
   "description": "",
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",
+    "archiver": "^7.0.1",
     "axios": "^1.13.2",
     "better-sqlite3": "^12.5.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "extract-zip": "^2.0.1",
     "multer": "^2.0.2"
   }
 }

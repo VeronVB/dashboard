@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { useSettings } from '../context/SettingsContext';
 import { getBackgrounds, uploadBackground, deleteBackground } from '../services/api';
+import { exportBackup, importBackup } from '../services/api';
 
 function TabPanel({ children, value, index }) {
   return value === index ? <Box sx={{ p: 3 }}>{children}</Box> : null;
@@ -46,6 +47,7 @@ function Settings() {
   const [hasChanges, setHasChanges] = useState(false);
   const [backgrounds, setBackgrounds] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => {
     setFormValues(settings);
@@ -144,11 +146,48 @@ function Settings() {
     }
   };
 
+  const handleExportBackup = async () => {
+  setBackupLoading(true);
+  try {
+    const response = await exportBackup();
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    toast.success('Backup pobrany');
+  } catch (err) {
+    toast.error('Błąd eksportu');
+  } finally {
+    setBackupLoading(false);
+  }
+};
+
+  const handleImportBackup = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBackupLoading(true);
+    try {
+      await importBackup(file);
+      toast.success('Backup przywrócony. Odświeżam...');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      toast.error('Błąd importu');
+    } finally {
+      setBackupLoading(false);
+      e.target.value = '';
+    }
+  };
+
   const shortcuts = [
     { keys: 'Ctrl + 1', action: 'Strona główna (Overview)' },
     { keys: 'Ctrl + 2', action: 'Kontenery Docker' },
+    { keys: 'Ctrl + 3', action: 'Wyszukiwarka' },
     { keys: 'Ctrl + 0', action: 'Ustawienia' },
-    { keys: 'Ctrl + K', action: 'Wyszukiwarka (wkrótce)' },
   ];
 
   return (
@@ -254,7 +293,7 @@ function Settings() {
                   onClick={() => handleSelectBackground(bg.url)}
                 >
                   <img
-                    src={`/api${bg.url}`}
+                    src={bg.url}
                     alt={bg.filename}
                     loading="lazy"
                     style={{ objectFit: 'cover', height: '100%' }}
@@ -289,15 +328,31 @@ function Settings() {
 
         {/* TAB: Kopia zapasowa */}
         <TabPanel value={tab} index={2}>
-          <Alert severity="info" sx={{ mb: 3 }}>
-            Funkcja w przygotowaniu
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            Import nadpisze obecne ustawienia i pliki!
           </Alert>
-          <Button variant="outlined" disabled sx={{ mr: 2 }}>
-            Eksportuj konfigurację
-          </Button>
-          <Button variant="outlined" disabled>
-            Importuj konfigurację
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button 
+              variant="contained" 
+              onClick={handleExportBackup}
+              disabled={backupLoading}
+            >
+              {backupLoading ? 'Przetwarzanie...' : 'Eksportuj konfigurację'}
+            </Button>
+            <Button 
+              variant="outlined" 
+              component="label"
+              disabled={backupLoading}
+            >
+              {backupLoading ? 'Przetwarzanie...' : 'Importuj konfigurację'}
+              <input
+                type="file"
+                hidden
+                accept=".zip"
+                onChange={handleImportBackup}
+              />
+            </Button>
+          </Box>
         </TabPanel>
 
         {/* TAB: Skróty */}

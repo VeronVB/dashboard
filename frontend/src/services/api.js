@@ -40,4 +40,15 @@ export const getBackgrounds = () => api.get('/uploads/backgrounds');
 export const deleteBackground = (filename) => 
   api.delete(`/uploads/background/${filename}`);
 
+// Backup
+export const exportBackup = () => api.get('/backup/export', { responseType: 'blob' });
+
+export const importBackup = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/backup/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
 export default api;

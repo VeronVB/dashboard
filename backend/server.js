@@ -7,6 +7,7 @@ const metricsRoutes = require('./routes/metrics');
 const containersRoutes = require('./routes/containers');
 const settingsRoutes = require('./routes/settings');
 const uploadsRoutes = require('./routes/uploads');
+const backupRoutes = require('./routes/backup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/containers', containersRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/uploads', uploadsRoutes);
+app.use('/api/backup', backupRoutes);
 
 // Static serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
