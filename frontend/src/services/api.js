@@ -51,4 +51,24 @@ export const importBackup = (file) => {
   });
 };
 
+// ============================================================
+// WIDGETS - NOWY
+// ============================================================
+
+export const getWidgets = () => api.get('/widgets');
+
+export const getWidget = (id) => api.get(`/widgets/${id}`);
+
+export const createWidget = (data) => 
+  api.post('/widgets', data);
+
+export const updateWidget = (id, data) => 
+  api.put(`/widgets/${id}`, data);
+
+export const deleteWidget = (id) => 
+  api.delete(`/widgets/${id}`);
+
+export const updateWidgetPositions = (updates) => 
+  api.patch('/widgets/positions', { updates });
+
 export default api;

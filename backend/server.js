@@ -8,6 +8,7 @@ const containersRoutes = require('./routes/containers');
 const settingsRoutes = require('./routes/settings');
 const uploadsRoutes = require('./routes/uploads');
 const backupRoutes = require('./routes/backup');
+const widgetsRoutes = require('./routes/widgets');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,9 +23,11 @@ app.use('/api/containers', containersRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/widgets', widgetsRoutes);
 
 // Static serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

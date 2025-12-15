@@ -27,14 +27,17 @@ import {
   Palette as PaletteIcon,
   Backup as BackupIcon,
   Keyboard as KeyboardIcon,
+  Widgets as WidgetsIcon,  // NOWY
   Save as SaveIcon,
   Delete as DeleteIcon,
   Check as CheckIcon,
   CloudUpload as UploadIcon
 } from '@mui/icons-material';
+import { Radio, RadioGroup, FormControl, FormHelperText } from '@mui/material';
 import { useSettings } from '../context/SettingsContext';
 import { getBackgrounds, uploadBackground, deleteBackground } from '../services/api';
 import { exportBackup, importBackup } from '../services/api';
+import WidgetsTab from '../components/WidgetsTab';
 
 function TabPanel({ children, value, index }) {
   return value === index ? <Box sx={{ p: 3 }}>{children}</Box> : null;
@@ -135,7 +138,6 @@ function Settings() {
       await deleteBackground(filename);
       toast.success('Plik usunięty');
       
-      // Jeśli usuwamy aktywne tło, wyczyść ustawienie
       if (settings.background_url?.includes(filename)) {
         await updateSettingValue('background_url', '', 'string');
       }
@@ -147,24 +149,24 @@ function Settings() {
   };
 
   const handleExportBackup = async () => {
-  setBackupLoading(true);
-  try {
-    const response = await exportBackup();
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `dashboard-backup-${new Date().toISOString().slice(0, 10)}.zip`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    toast.success('Backup pobrany');
-  } catch (err) {
-    toast.error('Błąd eksportu');
-  } finally {
-    setBackupLoading(false);
-  }
-};
+    setBackupLoading(true);
+    try {
+      const response = await exportBackup();
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `dashboard-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Backup pobrany');
+    } catch (err) {
+      toast.error('Błąd eksportu');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
 
   const handleImportBackup = async (e) => {
     const file = e.target.files?.[0];
@@ -209,6 +211,7 @@ function Settings() {
         <Tabs value={tab} onChange={(e, v) => setTab(v)}>
           <Tab icon={<SettingsIcon />} label="Ogólne" />
           <Tab icon={<PaletteIcon />} label="Wygląd" />
+          <Tab icon={<WidgetsIcon />} label="Widgety" />  {/* NOWY */}
           <Tab icon={<BackupIcon />} label="Kopia zapasowa" />
           <Tab icon={<KeyboardIcon />} label="Skróty" />
         </Tabs>
@@ -222,6 +225,7 @@ function Settings() {
             onChange={(e) => handleInputChange('dashboard_title', e.target.value)}
             sx={{ mb: 3 }}
           />
+
           <FormControlLabel
             control={
               <Switch
@@ -230,6 +234,16 @@ function Settings() {
               />
             }
             label="Pokaż wyszukiwarkę w navbar"
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.show_footer !== false}
+                onChange={(e) => handleToggle('show_footer', e.target.checked, 'boolean')}
+              />
+            }
+            label="Pokaż status homelab na dole strony"
           />
         </TabPanel>
 
@@ -244,7 +258,32 @@ function Settings() {
             }
             label="Dark mode"
           />
-          
+
+          <Divider sx={{ my: 3 }} />
+
+          <Typography variant="subtitle1" sx={{ mb: 2 }}>Pozycja menu</Typography>
+          <FormControl>
+            <RadioGroup
+              value={settings.sidebar_position || 'right'}
+              onChange={(e) => handleToggle('sidebar_position', e.target.value, 'string')}
+              row
+            >
+              <FormControlLabel 
+                value="left" 
+                control={<Radio />} 
+                label="Po lewej stronie" 
+              />
+              <FormControlLabel 
+                value="right" 
+                control={<Radio />} 
+                label="Po prawej stronie" 
+              />
+            </RadioGroup>
+            <FormHelperText>
+              Wybierz z której strony ma wyświetlać się menu (wymaga odświeżenia strony)
+            </FormHelperText>
+          </FormControl>
+
           <Divider sx={{ my: 3 }} />
           
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -326,8 +365,13 @@ function Settings() {
           )}
         </TabPanel>
 
-        {/* TAB: Kopia zapasowa */}
+        {/* TAB: Widgety - NOWY */}
         <TabPanel value={tab} index={2}>
+          <WidgetsTab />
+        </TabPanel>
+
+        {/* TAB: Kopia zapasowa */}
+        <TabPanel value={tab} index={3}>
           <Alert severity="warning" sx={{ mb: 3 }}>
             Import nadpisze obecne ustawienia i pliki!
           </Alert>
@@ -356,7 +400,7 @@ function Settings() {
         </TabPanel>
 
         {/* TAB: Skróty */}
-        <TabPanel value={tab} index={3}>
+        <TabPanel value={tab} index={4}>
           <List>
             {shortcuts.map((s) => (
               <ListItem key={s.keys}>
