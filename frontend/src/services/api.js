@@ -52,13 +52,21 @@ export const importBackup = (file) => {
 };
 
 // ============================================================
-// WIDGETS - NOWY
+// TABS
+// ============================================================
+
+export const getTabs = () => api.get(`/tabs`);
+export const createTab = (name) => api.post(`/tabs`, { name });
+export const updateTab = (id, name) => api.put(`/tabs/${id}`, { name });
+export const deleteTab = (id) => api.delete(`/tabs/${id}`);
+
+// ============================================================
+// WIDGETS
 // ============================================================
 
 export const getWidgets = () => api.get('/widgets');
 
 export const getWidget = (id) => api.get(`/widgets/${id}`);
-
 export const createWidget = (data) => 
   api.post('/widgets', data);
 

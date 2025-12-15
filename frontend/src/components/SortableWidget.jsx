@@ -1,13 +1,12 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box } from '@mui/material';
 
 /**
  * SortableWidget - Wrapper dla widgetu z drag & drop
  * Używa @dnd-kit/sortable do obsługi przeciągania
  */
-function SortableWidget({ id, children, disabled }) {
+function SortableWidget({ id, widget, children, disabled }) {
   const {
     attributes,
     listeners,
@@ -17,38 +16,34 @@ function SortableWidget({ id, children, disabled }) {
     isDragging,
   } = useSortable({ 
     id,
+    data: { size: widget?.size },
     disabled,
-    transition: {
-      duration: 150, // Szybsza animacja
-      easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-    },
   });
 
-  const style = {
-    transform: CSS.Translate.toString(transform), // Tylko przesunięcie, bez scale
-    transition: transition || 'transform 150ms cubic-bezier(0.25, 1, 0.5, 1)',
-    opacity: isDragging ? 0.3 : 1,
-    zIndex: isDragging ? 1000 : 'auto',
-  };
-
   return (
-    <Box
+    <div
       ref={setNodeRef}
-      style={style}
       {...attributes}
       {...listeners}
-      sx={{
-        // Wyłącz dotykanie podczas drag
-        touchAction: 'none',
-        // Cursor
+      style={{
+        transform: isDragging ? CSS.Translate.toString(transform) : undefined,
+        transition: isDragging ? transition : undefined,
+        opacity: isDragging ? 0.3 : 1,
+        zIndex: isDragging ? 1000 : 'auto',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         cursor: disabled ? 'default' : 'grab',
-        '&:active': {
-          cursor: disabled ? 'default' : 'grabbing'
-        }
+      }}
+      onMouseDown={(e) => {
+        if (!disabled) e.currentTarget.style.cursor = 'grabbing';
+      }}
+      onMouseUp={(e) => {
+        if (!disabled) e.currentTarget.style.cursor = 'grab';
       }}
     >
       {children}
-    </Box>
+    </div>
   );
 }
 

@@ -15,7 +15,6 @@ db.exec(`
   )
 `);
 
-// Domyślne wartości settings
 const defaults = [
   ['dashboard_title', 'Homelab Dashboard', 'string'],
   ['search_enabled', 'true', 'boolean'],
@@ -28,32 +27,48 @@ const defaults = [
 const insertDefault = db.prepare(
   'INSERT OR IGNORE INTO settings (key, value, type) VALUES (?, ?, ?)'
 );
-
 defaults.forEach(row => insertDefault.run(...row));
 
 // ============================================================
-// TABELA: widgets (NOWY SCHEMAT Z KOLUMNĄ size)
+// TABELA: tabs (NOWA)
+// ============================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tabs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    order_index INTEGER DEFAULT 0
+  )
+`);
+
+// Dodaj domyślną zakładkę "Home", jeśli tabela jest pusta
+const checkTabs = db.prepare('SELECT count(*) as count FROM tabs').get();
+if (checkTabs.count === 0) {
+  db.prepare('INSERT INTO tabs (name, order_index) VALUES (?, ?)').run('Główny', 0);
+}
+
+// ============================================================
+// TABELA: widgets (ZAKTUALIZOWANA o tab_id)
 // ============================================================
 db.exec(`
   CREATE TABLE IF NOT EXISTS widgets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tab_id INTEGER DEFAULT 1, -- <<< FK do tabs
     type TEXT NOT NULL,
     name TEXT NOT NULL,
     position INTEGER DEFAULT 0,
     config TEXT NOT NULL,
-    size TEXT DEFAULT 'medium',  -- <<< DODANO TUTAJ
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    size TEXT DEFAULT 'medium',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(tab_id) REFERENCES tabs(id) ON DELETE CASCADE
   )
 `);
-// >>> USUNIĘTO KOD MIGRACYJNY ALTER TABLE
 
 // ============================================================
-// SETTINGS: Helper functions
+// SETTINGS FUNCTIONS
 // ============================================================
 const getSetting = (key) => {
   const row = db.prepare('SELECT * FROM settings WHERE key = ?').get(key);
   if (!row) return null;
-  
   if (row.type === 'boolean') return row.value === 'true';
   if (row.type === 'number') return Number(row.value);
   return row.value;
@@ -77,78 +92,82 @@ const getAllSettings = () => {
 };
 
 // ============================================================
-// WIDGETS: Helper functions
+// TABS FUNCTIONS (NOWE)
 // ============================================================
 
-/**
- * Pobierz wszystkie widgety posortowane po position
- */
+const getAllTabs = () => {
+  return db.prepare('SELECT * FROM tabs ORDER BY order_index ASC').all();
+};
+
+const createTab = (name) => {
+  const maxOrder = db.prepare('SELECT MAX(order_index) as max FROM tabs').get();
+  const nextOrder = (maxOrder.max || 0) + 1;
+  const res = db.prepare('INSERT INTO tabs (name, order_index) VALUES (?, ?)').run(name, nextOrder);
+  return { id: res.lastInsertRowid, name, order_index: nextOrder };
+};
+
+const updateTab = (id, name) => {
+  db.prepare('UPDATE tabs SET name = ? WHERE id = ?').run(name, id);
+  return { id, name };
+};
+
+const deleteTab = (id) => {
+  // SQLite z ON DELETE CASCADE usunie widgety automatycznie, ale dla pewności w better-sqlite3:
+  // Wymaga włączenia PRAGMA foreign_keys = ON; w sesji, albo ręcznego usuwania.
+  // Zrobimy ręcznie dla bezpieczeństwa:
+  const trans = db.transaction(() => {
+    db.prepare('DELETE FROM widgets WHERE tab_id = ?').run(id);
+    db.prepare('DELETE FROM tabs WHERE id = ?').run(id);
+  });
+  trans();
+  return true;
+};
+
+// ============================================================
+// WIDGETS FUNCTIONS
+// ============================================================
+
 const getAllWidgets = () => {
   const rows = db.prepare('SELECT * FROM widgets ORDER BY position ASC').all();
   return rows.map(row => ({
     ...row,
     config: JSON.parse(row.config),
-    // Nie jest już potrzebny fallback `row.size || 'medium'`, 
-    // ponieważ baza danych gwarantuje domyślną wartość
   }));
 };
 
-/**
- * Pobierz pojedynczy widget po ID
- */
 const getWidget = (id) => {
   const row = db.prepare('SELECT * FROM widgets WHERE id = ?').get(id);
   if (!row) return null;
   return {
     ...row,
     config: JSON.parse(row.config),
-    // Nie jest już potrzebny fallback
   };
 };
 
-/**
- * Dodaj nowy widget
- */
-const createWidget = (type, name, config, position = null, size = 'medium') => {
-  // Jeśli position nie podano, ustaw na max + 1
+const createWidget = (type, name, config, tab_id = 1, position = null, size = 'medium') => {
   if (position === null) {
-    const maxPos = db.prepare('SELECT MAX(position) as max FROM widgets').get();
+    // Max position W RAMACH DANEJ ZAKŁADKI
+    const maxPos = db.prepare('SELECT MAX(position) as max FROM widgets WHERE tab_id = ?').get(tab_id);
     position = (maxPos.max || 0) + 1;
   }
   
   const result = db.prepare(`
-    INSERT INTO widgets (type, name, position, config, size)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(type, name, position, JSON.stringify(config), size);
+    INSERT INTO widgets (type, name, config, tab_id, position, size)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(type, name, JSON.stringify(config), tab_id, position, size);
   
   return getWidget(result.lastInsertRowid);
 };
 
-/**
- * Aktualizuj widget
- */
 const updateWidget = (id, updates) => {
-  console.log('=== updateWidget BACKEND ===');
-  console.log('ID:', id);
-  console.log('updates:', updates);
-  
   const current = getWidget(id);
   if (!current) throw new Error('Widget not found');
   
-  console.log('current.size:', current.size);
-  
-  const { type, name, config, position, size } = updates;
-  
-  console.log('Extracted size:', size);
-  console.log('Will save:', size ?? current.size);
+  const { type, name, config, position, size, tab_id } = updates;
   
   db.prepare(`
     UPDATE widgets
-    SET type = ?,
-        name = ?,
-        config = ?,
-        position = ?,
-        size = ?
+    SET type = ?, name = ?, config = ?, position = ?, size = ?, tab_id = ?
     WHERE id = ?
   `).run(
     type ?? current.type,
@@ -156,26 +175,18 @@ const updateWidget = (id, updates) => {
     JSON.stringify(config ?? current.config),
     position ?? current.position,
     size ?? current.size,
+    tab_id ?? current.tab_id,
     id
   );
   
-  const updated = getWidget(id);
-  console.log('After UPDATE - updated.size:', updated.size);
-  
-  return updated;
+  return getWidget(id);
 };
 
-/**
- * Usuń widget
- */
 const deleteWidget = (id) => {
   const result = db.prepare('DELETE FROM widgets WHERE id = ?').run(id);
   return result.changes > 0;
 };
 
-/**
- * Aktualizuj pozycje wielu widgetów (dla drag-and-drop)
- */
 const updateWidgetPositions = (updates) => {
   const stmt = db.prepare('UPDATE widgets SET position = ? WHERE id = ?');
   const transaction = db.transaction((updates) => {
@@ -183,21 +194,12 @@ const updateWidgetPositions = (updates) => {
       stmt.run(position, id);
     }
   });
-  
   transaction(updates);
 };
 
 module.exports = {
   db,
-  // Settings
-  getSetting,
-  setSetting,
-  getAllSettings,
-  // Widgets
-  getAllWidgets,
-  getWidget,
-  createWidget,
-  updateWidget,
-  deleteWidget,
-  updateWidgetPositions,
+  getSetting, setSetting, getAllSettings,
+  getAllTabs, createTab, updateTab, deleteTab, // Export tabs logic
+  getAllWidgets, getWidget, createWidget, updateWidget, deleteWidget, updateWidgetPositions,
 };

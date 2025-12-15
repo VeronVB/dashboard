@@ -36,7 +36,7 @@ function WidgetCard({
   onEdit, 
   onDelete, 
   onDuplicate,
-  onResize  // NOWY callback
+  onResize
 }) {
   const { editMode } = useEditMode();
   const [menuAnchor, setMenuAnchor] = useState(null);
@@ -73,6 +73,8 @@ function WidgetCard({
     <Card
       sx={{
         position: 'relative',
+        minHeight: '100%',
+        height: '100%',
         transition: 'all 0.3s ease',
         border: editMode ? 2 : 1,
         borderColor: editMode ? 'warning.main' : 'divider',
@@ -92,7 +94,7 @@ function WidgetCard({
             top: 0,
             left: 0,
             right: 0,
-            height: 40,
+            height: 50,
             bgcolor: alpha('#ff9800', 0.1),
             borderBottom: 1,
             borderColor: 'warning.main',
@@ -104,21 +106,22 @@ function WidgetCard({
           }}
         >
           {/* Drag Handle */}
-          <Box 
-            sx={{ 
-              display: 'flex', 
+          <Box
+            sx={{
+              display: 'flex',
               alignItems: 'center',
               cursor: 'grab',
+              touchAction: 'none',
               '&:active': {
                 cursor: 'grabbing'
               }
             }}
           >
             <DragIcon sx={{ color: 'warning.main', mr: 1 }} />
-            <Box 
-              component="span" 
-              sx={{ 
-                fontSize: '0.75rem', 
+            <Box
+              component="span"
+              sx={{
+                fontSize: '0.75rem',
                 color: 'warning.main',
                 fontWeight: 'bold',
                 userSelect: 'none'
@@ -128,13 +131,20 @@ function WidgetCard({
             </Box>
           </Box>
 
-          {/* Resize Buttons - NOWE */}
-          <ButtonGroup size="small" sx={{ mr: 1 }}>
+          {/* Resize Buttons */}
+          <ButtonGroup
+            size="small"
+            sx={{ mr: 1 }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <Tooltip title={WIDGET_SIZE_LABELS.small}>
               <IconButton
                 size="small"
-                onClick={() => handleResize('small')}
-                sx={{ 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResize('small');
+                }}
+                sx={{
                   color: widgetSize === 'small' ? 'warning.main' : 'text.secondary',
                   bgcolor: widgetSize === 'small' ? alpha('#ff9800', 0.2) : 'transparent'
                 }}
@@ -146,8 +156,11 @@ function WidgetCard({
             <Tooltip title={WIDGET_SIZE_LABELS.medium}>
               <IconButton
                 size="small"
-                onClick={() => handleResize('medium')}
-                sx={{ 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResize('medium');
+                }}
+                sx={{
                   color: widgetSize === 'medium' ? 'warning.main' : 'text.secondary',
                   bgcolor: widgetSize === 'medium' ? alpha('#ff9800', 0.2) : 'transparent'
                 }}
@@ -159,8 +172,11 @@ function WidgetCard({
             <Tooltip title={WIDGET_SIZE_LABELS.large}>
               <IconButton
                 size="small"
-                onClick={() => handleResize('large')}
-                sx={{ 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResize('large');
+                }}
+                sx={{
                   color: widgetSize === 'large' ? 'warning.main' : 'text.secondary',
                   bgcolor: widgetSize === 'large' ? alpha('#ff9800', 0.2) : 'transparent'
                 }}
@@ -174,7 +190,7 @@ function WidgetCard({
           <IconButton
             size="small"
             onClick={handleMenuOpen}
-            sx={{ 
+            sx={{
               color: 'warning.main',
               '&:hover': { bgcolor: alpha('#ff9800', 0.2) }
             }}
@@ -185,12 +201,14 @@ function WidgetCard({
       )}
 
       {/* Widget Content */}
-      <CardContent 
-        sx={{ 
-          pt: editMode ? 6 : 2,
+      <CardContent
+        sx={{
+          pt: editMode ? 7 : 2,
           pb: 2,
-          overflow: 'auto',
-          flex: 1
+          overflow: 'hidden',
+          overflowY: 'auto',
+          flex: 1,
+          wordBreak: 'break-word'
         }}
       >
         {children}

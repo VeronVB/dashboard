@@ -24,8 +24,13 @@ function SingleNote({ content, fontSize, onUpdate }) {
   return (
     <Box sx={{ position: 'relative', minHeight: 100 }}>
       {/* Edytuj button - tylko w edit mode lub gdy pusta */}
-      {(editMode || isEmpty) && (
-        <Box sx={{ position: 'absolute', top: 0, right: 0 }}>
+      {true && (
+        <Box sx={{ 
+          position: 'absolute', 
+          bottom: 2, 
+          right: 10, 
+          zIndex: 10 
+        }}>
           <Tooltip title="Edytuj notatkę">
             <IconButton 
               size="small" 
@@ -56,8 +61,12 @@ function SingleNote({ content, fontSize, onUpdate }) {
       ) : (
         <Box 
           sx={{ 
+            p: 2,
+            minHeight: 150,
             fontSize: `${fontSize}px`,
             lineHeight: 1.6,
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
             '& h1': { fontSize: '2em', mt: 0, mb: 2 },
             '& h2': { fontSize: '1.5em', mt: 2, mb: 1 },
             '& h3': { fontSize: '1.2em', mt: 1, mb: 1 },

@@ -9,7 +9,6 @@ import {
 } from '@mui/material';
 import {
   DndContext,
-  closestCenter,
   pointerWithin,
   KeyboardSensor,
   PointerSensor,
@@ -35,6 +34,7 @@ import Footer from '../components/Footer';
 import { NotesWidget } from '../widgets';
 import WidgetFormDialog from '../components/WidgetFormDialog';
 import EditWidgetDialog from '../components/EditWidgetDialog';
+import TabNavigation from '../components/TabNavigation';
 
 
 function Overview() {
@@ -44,8 +44,9 @@ function Overview() {
   const [error, setError] = useState(null);
   
   // Widget state
-  const { widgets, removeWidget, addWidget, editWidget, setWidgets } = useWidgets();
+  const { widgets, removeWidget, addWidget, editWidget, setWidgets, activeTabId } = useWidgets();
   const { editMode } = useEditMode();
+  const [forceKeys, setForceKeys] = useState({});
   const [addWidgetOpen, setAddWidgetOpen] = useState(false);
   const [editWidgetOpen, setEditWidgetOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState(null);
@@ -57,13 +58,18 @@ function Overview() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Minimum 8px ruchu aby zaczął drag (zapobiega przypadkowemu drag)
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Filtruj widgety pod kątem aktywnej zakładki
+  const visibleWidgets = widgets
+    .filter(w => w.tab_id === activeTabId)
+    .sort((a, b) => a.position - b.position);
 
   // Measuring strategy - optymalizacja wydajności
   const measuring = {
@@ -183,27 +189,29 @@ function Overview() {
       return;
     }
 
-    // Znajdź indeksy
-    const oldIndex = widgets.findIndex(w => w.id === active.id);
-    const newIndex = widgets.findIndex(w => w.id === over.id);
+    const oldIndex = visibleWidgets.findIndex(w => w.id === active.id);
+    const newIndex = visibleWidgets.findIndex(w => w.id === over.id);
 
-    // Przesuń widgety w lokalnym state (optimistic update)
-    const reorderedWidgets = arrayMove(widgets, oldIndex, newIndex);
-    setWidgets(reorderedWidgets);
+    const reorderedVisible = arrayMove(visibleWidgets, oldIndex, newIndex);
 
-    // Przygotuj updates dla backendu
-    const updates = reorderedWidgets.map((widget, index) => ({
-      id: widget.id,
-      position: index
+    const reorderedWithPositions = reorderedVisible.map((w, idx) => ({ ...w, position: idx }));
+    
+    const finalWidgets = widgets.map(w => {
+      const found = reorderedWithPositions.find(rw => rw.id === w.id);
+      return found || w;
+    });
+    
+    setWidgets(finalWidgets);
+
+    const updates = reorderedWithPositions.map(w => ({
+      id: w.id,
+      position: w.position
     }));
 
-    // Zapisz w bazie
     try {
       await updateWidgetPositions(updates);
     } catch (err) {
       toast.error('Błąd zapisu kolejności');
-      // Rollback
-      setWidgets(widgets);
     }
   };
 
@@ -212,12 +220,23 @@ function Overview() {
   };
 
   const handleResizeWidget = async (widgetId, newSize) => {
+    const oldWidget = widgets.find(w => w.id === widgetId);
+    const oldSize = oldWidget?.size || 'medium';
+
+    setWidgets(prev =>
+      prev.map(w => (w.id === widgetId ? { ...w, size: newSize } : w))
+    );
+
     const result = await editWidget(widgetId, { size: newSize });
-    
+
     if (result.success) {
-        toast.success(`Rozmiar zmieniony: ${WIDGET_SIZE_LABELS[newSize]}`);
-      } else {
-        toast.error('Błąd zmiany rozmiaru');
+      toast.success(`Rozmiar: ${WIDGET_SIZE_LABELS[newSize]}`);
+      setForceKeys(prev => ({ ...prev, [widgetId]: Date.now() }));
+    } else {
+      toast.error('Błąd');
+      setWidgets(prev =>
+        prev.map(w => (w.id === widgetId ? { ...w, size: oldSize } : w))
+      );
     }
   };
 
@@ -259,17 +278,14 @@ function Overview() {
     );
   }
 
-  // Aktywny widget (dla DragOverlay)
   const activeWidget = activeId ? widgets.find(w => w.id === activeId) : null;
-  console.log('=== OVERVIEW DEBUG ===');
-  console.log('Widget 0:', widgets[0]);
-  console.log('Widget 0 size:', widgets[0]?.size);
+
   return (
     <Container sx={{ mt: 4, pb: 8 }}>
-      {/* pb: 8 = padding bottom dla footer */}
+      
+      <TabNavigation />
 
-      {/* Widgety użytkownika - Z DRAG & DROP */}
-      {widgets.length > 0 && (
+      {visibleWidgets.length > 0 && (
         <DndContext
           sensors={sensors}
           collisionDetection={pointerWithin}
@@ -279,31 +295,43 @@ function Overview() {
           onDragCancel={handleDragCancel}
         >
           <SortableContext
-            items={widgets.map(w => w.id)}
+            items={visibleWidgets.map(w => w.id)}
             strategy={rectSortingStrategy}
           >
-            <Grid container spacing={3} sx={{ alignItems: 'flex-start' }}>
-              {widgets.map((widget) => (
-                <Grid item {...getWidgetGridSize(widget.size)} key={widget.id}>
-                  <SortableWidget id={widget.id} disabled={!editMode}>
-                    <WidgetCard
-                      widgetId={widget.id}
-                      widgetName={widget.name}
-                      widgetSize={widget.size}
-                      onEdit={() => handleEditConfig(widget)}
-                      onDelete={() => handleDeleteWidget(widget.id, widget.name)}
-                      onDuplicate={() => handleDuplicateWidget(widget)}
-                      onResize={(newSize) => handleResizeWidget(widget.id, newSize)}
-                    >
-                      {renderWidget(widget)}
-                    </WidgetCard>
-                  </SortableWidget>
-                </Grid>
-              ))}
+            <Grid 
+              container 
+              spacing={3}
+              sx={{ alignItems: 'flex-start' }}
+            >
+              {visibleWidgets.map((widget) => {
+                const gridSize = getWidgetGridSize(widget.size);
+                const widgetKey = `widget-${widget.id}-${widget.size}-${forceKeys[widget.id] || ''}`;
+
+                return (
+                  <Grid
+                    key={widgetKey}
+                    size={{ xs: 12, sm: gridSize.sm, md: gridSize.md }}
+                    data-size={widget.size}
+                  >
+                    <SortableWidget id={widget.id} disabled={!editMode}>
+                      <WidgetCard
+                        widgetId={widget.id}
+                        widgetName={widget.name}
+                        widgetSize={widget.size}
+                        onEdit={() => handleEditConfig(widget)}
+                        onDelete={() => handleDeleteWidget(widget.id, widget.name)}
+                        onDuplicate={() => handleDuplicateWidget(widget)}
+                        onResize={(newSize) => handleResizeWidget(widget.id, newSize)}
+                      >
+                        {renderWidget(widget)}
+                      </WidgetCard>
+                    </SortableWidget>
+                  </Grid>
+                );
+              })}
             </Grid>
           </SortableContext>
 
-          {/* DragOverlay - pokazuje dragged widget */}
           <DragOverlay
             dropAnimation={{
               duration: 300,
@@ -313,7 +341,12 @@ function Overview() {
             {activeWidget ? (
               <Box
                 sx={{
-                  width: 350,
+                  width: (() => {
+                    const size = activeWidget.size || 'medium';
+                    if (size === 'small') return 300;
+                    if (size === 'large') return 600;
+                    return 400;
+                  })(),
                   opacity: 0.95,
                   cursor: 'grabbing',
                   transform: 'rotate(-2deg)',
@@ -323,9 +356,11 @@ function Overview() {
                 <WidgetCard
                   widgetId={activeWidget.id}
                   widgetName={activeWidget.name}
+                  widgetSize={activeWidget.size}
                   onEdit={() => {}}
                   onDelete={() => {}}
                   onDuplicate={() => {}}
+                  onResize={() => {}}
                 >
                   {renderWidget(activeWidget)}
                 </WidgetCard>
@@ -335,14 +370,14 @@ function Overview() {
         </DndContext>
       )}
 
-      {/* Info gdy brak widgetów w edit mode */}
-      {widgets.length === 0 && editMode && (
+      {visibleWidgets.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>
-          Brak widgetów. Kliknij przycisk [+] w górnym pasku, aby dodać pierwszy widget.
+          {editMode 
+            ? 'Ta zakładka jest pusta. Dodaj widget przyciskiem [+] na górze.' 
+            : 'Pusta zakładka.'}
         </Alert>
       )}
 
-      {/* Dialog dodawania widgetu */}
       <WidgetFormDialog
         open={addWidgetOpen}
         onClose={() => setAddWidgetOpen(false)}
@@ -350,7 +385,6 @@ function Overview() {
         widgetType="notes"
       />
 
-      {/* Dialog edycji konfiguracji */}
       <EditWidgetDialog
         open={editWidgetOpen}
         onClose={() => {
@@ -361,7 +395,6 @@ function Overview() {
         widget={editingWidget}
       />
 
-      {/* Footer ze statusem homelab */}
       <Footer status={status} />
     </Container>
   );

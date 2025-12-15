@@ -9,6 +9,7 @@ const settingsRoutes = require('./routes/settings');
 const uploadsRoutes = require('./routes/uploads');
 const backupRoutes = require('./routes/backup');
 const widgetsRoutes = require('./routes/widgets');
+const tabsRoutes = require('./routes/tabs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,6 +25,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/widgets', widgetsRoutes);
+app.use('/api/tabs', tabsRoutes);
 
 // Static serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

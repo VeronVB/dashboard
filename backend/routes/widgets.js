@@ -35,18 +35,22 @@ router.get('/:id', (req, res) => {
 // POST /api/widgets - dodaj nowy widget
 router.post('/', (req, res) => {
   try {
-    const { type, name, config, position, size } = req.body;
+    // Dodano tab_id (domyślnie 1, jeśli frontend nie wyśle, ale frontend powinien wysłać)
+    const { type, name, config, position, size, tab_id } = req.body;
     
     if (!type || !name || !config) {
       return res.status(400).json({ error: 'Missing required fields: type, name, config' });
     }
     
-    const widget = createWidget(type, name, config, position, size);
+    // Przekazujemy tab_id do createWidget
+    const widget = createWidget(type, name, config, tab_id || 1, position, size);
     res.status(201).json(widget);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+
 
 // PUT /api/widgets/:id - aktualizuj widget
 router.put('/:id', (req, res) => {

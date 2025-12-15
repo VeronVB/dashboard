@@ -1,23 +1,45 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getWidgets, createWidget, updateWidget, deleteWidget } from '../services/api';
+import { 
+  getWidgets, createWidget, updateWidget, deleteWidget, 
+  getTabs, createTab as apiCreateTab, updateTab as apiUpdateTab, deleteTab as apiDeleteTab 
+} from '../services/api';
 
 const WidgetsContext = createContext();
 
 export function WidgetsProvider({ children }) {
   const [widgets, setWidgets] = useState([]);
+  const [tabs, setTabs] = useState([]);
+  const [activeTabId, setActiveTabId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchWidgets();
+    fetchAll();
   }, []);
 
-  const fetchWidgets = async () => {
+  const fetchAll = async () => {
     try {
       setLoading(true);
-      const res = await getWidgets();
-      setWidgets(res.data);
+      // Pobieramy równolegle widgety i zakładki
+      const [widgetsRes, tabsRes] = await Promise.all([
+        getWidgets(),
+        getTabs()
+      ]);
+      
+      // Axios zwraca dane w .data, upewnij się że to tablice
+      const widgetsData = Array.isArray(widgetsRes.data) ? widgetsRes.data : [];
+      const tabsData = Array.isArray(tabsRes.data) ? tabsRes.data : [];
+
+      setWidgets(widgetsData);
+      setTabs(tabsData);
+      
+      // Ustaw domyślną zakładkę, jeśli żadna nie jest wybrana
+      if (tabsData.length > 0 && !activeTabId) {
+        setActiveTabId(tabsData[0].id);
+      }
     } catch (err) {
-      console.error('Błąd ładowania widgetów:', err);
+      console.error('Błąd ładowania danych:', err);
+      // W razie błędu ustaw puste tablice, żeby nie wywalić aplikacji (filter error)
+      setWidgets([]); 
     } finally {
       setLoading(false);
     }
@@ -25,7 +47,8 @@ export function WidgetsProvider({ children }) {
 
   const addWidget = async (type, name, config) => {
     try {
-      const res = await createWidget({ type, name, config });
+      if (!activeTabId) throw new Error("Nie wybrano zakładki");
+      const res = await createWidget({ type, name, config, tab_id: activeTabId });
       setWidgets(prev => [...prev, res.data]);
       return { success: true, widget: res.data };
     } catch (err) {
@@ -36,20 +59,11 @@ export function WidgetsProvider({ children }) {
 
   const editWidget = async (id, updates) => {
     try {
-      console.log('=== editWidget CALLED ===');
-      console.log('ID:', id);
-      console.log('Updates:', updates);
-      
       const res = await updateWidget(id, updates);
-      
-      console.log('=== BACKEND RESPONSE ===');
-      console.log('Response data:', res.data);
-      console.log('Response data.size:', res.data.size);
-      
       setWidgets(prev => prev.map(w => w.id === id ? res.data : w));
       return { success: true, widget: res.data };
     } catch (err) {
-      console.error('Błąd aktualizacji widgetu:', err);
+      console.error('Błąd edycji widgetu:', err);
       return { success: false, error: err.message };
     }
   };
@@ -65,16 +79,53 @@ export function WidgetsProvider({ children }) {
     }
   };
 
+  // --- TAB ACTIONS ---
+
+  const addTab = async (name) => {
+    try {
+      const res = await apiCreateTab(name);
+      setTabs(prev => [...prev, res.data]);
+      setActiveTabId(res.data.id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const modifyTab = async (id, name) => {
+    try {
+      const res = await apiUpdateTab(id, name);
+      setTabs(prev => prev.map(t => t.id === id ? res.data : t));
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const removeTab = async (id) => {
+    try {
+      await apiDeleteTab(id);
+      const newTabs = tabs.filter(t => t.id !== id);
+      setTabs(newTabs);
+      setWidgets(prev => prev.filter(w => w.tab_id !== id));
+      
+      if (activeTabId === id && newTabs.length > 0) {
+        setActiveTabId(newTabs[0].id);
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
   return (
     <WidgetsContext.Provider 
       value={{ 
-        widgets, 
-        setWidgets,  // Dla optimistic updates (drag & drop)
+        widgets, setWidgets,
+        tabs, activeTabId, setActiveTabId,
         loading, 
-        addWidget, 
-        editWidget, 
-        removeWidget,
-        refetch: fetchWidgets 
+        addWidget, editWidget, removeWidget, refetch: fetchAll,
+        addTab, modifyTab, removeTab
       }}
     >
       {children}
@@ -84,8 +135,6 @@ export function WidgetsProvider({ children }) {
 
 export const useWidgets = () => {
   const context = useContext(WidgetsContext);
-  if (!context) {
-    throw new Error('useWidgets must be used within WidgetsProvider');
-  }
+  if (!context) throw new Error('useWidgets must be used within WidgetsProvider');
   return context;
 };
