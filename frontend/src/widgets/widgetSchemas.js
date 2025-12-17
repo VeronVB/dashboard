@@ -82,6 +82,67 @@ export const WIDGET_SCHEMAS = {
       }
     ]
   },
+
+  qbittorrent: {
+    label: 'qBittorrent',
+    icon: 'download',
+    description: 'Podgląd i zarządzanie torrentami przez WebUI API',
+    fields: [
+      {
+        name: 'name',
+        label: 'Nazwa instancji',
+        type: 'text',
+        required: true,
+        default: 'qBittorrent',
+      },
+      {
+        name: 'host',
+        label: 'Host (np. http://192.168.1.50)',
+        type: 'text',
+        required: true,
+        default: 'http://localhost',
+      },
+      {
+        name: 'port',
+        label: 'Port',
+        type: 'number',
+        required: true,
+        default: 8080,
+      },
+      {
+        name: 'username',
+        label: 'Użytkownik',
+        type: 'text',
+        required: true,
+        default: '',
+      },
+      {
+        name: 'password',
+        label: 'Hasło',
+        type: 'password',
+        required: true,
+        default: '',
+      },
+      {
+        name: 'refreshInterval',
+        label: 'Częstotliwość odświeżania (sekundy)',
+        type: 'number',
+        default: 20,
+        min: 5,
+        max: 300,
+      },
+      {
+        name: 'viewMode',
+        label: 'Tryb widoku',
+        type: 'select',
+        default: 'table',
+        options: [
+          { value: 'table', label: 'Tabela' },
+          { value: 'cards', label: 'Kafle' },
+        ],
+      },
+    ],
+  },
   
   // Następne widgety dodamy w kolejnych fazach:
   // qbittorrent: { ... },
