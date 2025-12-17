@@ -282,6 +282,16 @@ function QbittorrentWidget({ widget }) {
     );
   }
 
+  if (error && torrents.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <Alert severity="error" sx={{ py: 0.5 }}>
+          {error}
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: '100%', overflow: 'hidden' }}>
       {error && <Alert severity="error" sx={{ py: 0.5 }}>{error}</Alert>}
