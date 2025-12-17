@@ -53,6 +53,15 @@ export const importBackup = (file) => {
 };
 
 // ============================================================
+// QBittorrent
+// ============================================================
+
+export const getQbittorrentList = (payload) => api.post('/qbittorrent/list', payload);
+export const pauseQbittorrent = (payload) => api.post('/qbittorrent/pause', payload);
+export const resumeQbittorrent = (payload) => api.post('/qbittorrent/resume', payload);
+export const deleteQbittorrent = (payload) => api.post('/qbittorrent/delete', payload);
+
+// ============================================================
 // TABS
 // ============================================================
 

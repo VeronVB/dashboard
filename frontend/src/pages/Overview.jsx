@@ -31,7 +31,7 @@ import { useEditMode } from '../context/EditModeContext';
 import WidgetCard from '../components/WidgetCard';
 import SortableWidget from '../components/SortableWidget';
 import Footer from '../components/Footer';
-import { NotesWidget, DockerMiniWidget } from '../widgets';
+import { NotesWidget, DockerMiniWidget, QbittorrentWidget } from '../widgets';
 import WidgetFormDialog from '../components/WidgetFormDialog';
 import EditWidgetDialog from '../components/EditWidgetDialog';
 import TabNavigation from '../components/TabNavigation';
@@ -269,6 +269,8 @@ function Overview() {
         return <NotesWidget {...commonProps} />;
       case 'docker-mini':
         return <DockerMiniWidget {...commonProps} />;
+      case 'qbittorrent':
+        return <QbittorrentWidget {...commonProps} />;
       default:
         return (
           <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
