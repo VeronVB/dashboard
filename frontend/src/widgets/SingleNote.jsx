@@ -3,15 +3,19 @@ import { Box, IconButton, Typography, Tooltip } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useEditMode } from '../context/EditModeContext';
 import NoteEditorModal from './NoteEditorModal';
+
+// ============================================================
+// KONFIGURACJA WYSOKOŚCI
+// Zmniejszono do 19px aby zmieścił się w 200px (DEFAULT_COLLAPSED_HEIGHT)
+// ============================================================
+const MIN_WIDGET_HEIGHT = 190; 
 
 /**
  * SingleNote - Pojedyncza notatka Markdown
  * displayMode: 'note'
  */
 function SingleNote({ content, fontSize, onUpdate }) {
-  const { editMode } = useEditMode();
   const [editorOpen, setEditorOpen] = useState(false);
 
   const isEmpty = !content || content.trim() === '';
@@ -22,27 +26,7 @@ function SingleNote({ content, fontSize, onUpdate }) {
   };
 
   return (
-    <Box sx={{ position: 'relative', minHeight: 100 }}>
-      {/* Edytuj button - tylko w edit mode lub gdy pusta */}
-      {true && (
-        <Box sx={{ 
-          position: 'absolute', 
-          bottom: 2, 
-          right: 10, 
-          zIndex: 10 
-        }}>
-          <Tooltip title="Edytuj notatkę">
-            <IconButton 
-              size="small" 
-              onClick={() => setEditorOpen(true)}
-              color="primary"
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      )}
-
+    <Box sx={{ position: 'relative', minHeight: MIN_WIDGET_HEIGHT, height: '100%' }}>
       {/* Content */}
       {isEmpty ? (
         <Box 
@@ -50,7 +34,11 @@ function SingleNote({ content, fontSize, onUpdate }) {
             textAlign: 'center', 
             py: 4,
             color: 'text.secondary',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
           onClick={() => setEditorOpen(true)}
         >
@@ -61,12 +49,11 @@ function SingleNote({ content, fontSize, onUpdate }) {
       ) : (
         <Box 
           sx={{ 
-            p: 2,
-            minHeight: 150,
             fontSize: `${fontSize}px`,
             lineHeight: 1.6,
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
+            pb: 4, // Padding na przycisk edycji
             '& h1': { fontSize: '2em', mt: 0, mb: 2 },
             '& h2': { fontSize: '1.5em', mt: 2, mb: 1 },
             '& h3': { fontSize: '1.2em', mt: 1, mb: 1 },
@@ -116,6 +103,32 @@ function SingleNote({ content, fontSize, onUpdate }) {
           </ReactMarkdown>
         </Box>
       )}
+
+      {/* Przycisk edycji - ZAWSZE w prawym dolnym rogu */}
+      <Tooltip title="Edytuj notatkę">
+        <IconButton 
+          size="small" 
+          onClick={() => setEditorOpen(true)}
+          data-edit-button="true"
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            color: 'text.secondary',
+            bgcolor: 'background.paper',
+            border: 1,
+            borderColor: 'divider',
+            boxShadow: 1,
+            zIndex: 5,
+            '&:hover': {
+              color: 'primary.main',
+              bgcolor: 'action.hover'
+            }
+          }}
+        >
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
 
       {/* Editor Modal */}
       <NoteEditorModal

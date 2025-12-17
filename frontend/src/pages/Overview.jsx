@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { 
   Container, 
-  Grid, 
+  Grid, // <--- POPRAWNY IMPORT DLA MUI v7 (to jest nowy Grid)
   Box,
   CircularProgress,
   Alert
@@ -31,10 +31,11 @@ import { useEditMode } from '../context/EditModeContext';
 import WidgetCard from '../components/WidgetCard';
 import SortableWidget from '../components/SortableWidget';
 import Footer from '../components/Footer';
-import { NotesWidget } from '../widgets';
+import { NotesWidget, DockerMiniWidget } from '../widgets';
 import WidgetFormDialog from '../components/WidgetFormDialog';
 import EditWidgetDialog from '../components/EditWidgetDialog';
 import TabNavigation from '../components/TabNavigation';
+import WidgetSelectionDialog from '../components/WidgetSelectionDialog';
 
 
 function Overview() {
@@ -50,6 +51,10 @@ function Overview() {
   const [addWidgetOpen, setAddWidgetOpen] = useState(false);
   const [editWidgetOpen, setEditWidgetOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState(null);
+
+  // === NOWE STANY DO WYBORU WIDGETU ===
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState('notes');
 
   // Drag & Drop state
   const [activeId, setActiveId] = useState(null);
@@ -86,7 +91,10 @@ function Overview() {
 
   // Nasłuchuj event z Navbar (przycisk +)
   useEffect(() => {
-    const handleOpenAddWidget = () => setAddWidgetOpen(true);
+    const handleOpenAddWidget = () => {
+      // ZAMIAST OTWIERAĆ FORMULARZ, OTWIERAMY WYBÓR
+      setSelectionOpen(true);
+    };
     window.addEventListener('openAddWidget', handleOpenAddWidget);
     return () => window.removeEventListener('openAddWidget', handleOpenAddWidget);
   }, []);
@@ -161,6 +169,13 @@ function Overview() {
     }
   };
 
+  // === OBSŁUGA WYBORU TYPU WIDGETU ===
+  const handleTypeSelect = (type) => {
+    setSelectedType(type);
+    setSelectionOpen(false);
+    setTimeout(() => setAddWidgetOpen(true), 100);
+  };
+
   const handleAddWidget = async (data) => {
     const result = await addWidget(data.type, data.name, data.config);
     
@@ -221,8 +236,7 @@ function Overview() {
 
   const handleResizeWidget = async (widgetId, newSize) => {
     const oldWidget = widgets.find(w => w.id === widgetId);
-    const oldSize = oldWidget?.size || 'medium';
-
+    
     setWidgets(prev =>
       prev.map(w => (w.id === widgetId ? { ...w, size: newSize } : w))
     );
@@ -235,7 +249,7 @@ function Overview() {
     } else {
       toast.error('Błąd');
       setWidgets(prev =>
-        prev.map(w => (w.id === widgetId ? { ...w, size: oldSize } : w))
+        prev.map(w => (w.id === widgetId ? { ...w, size: oldWidget?.size || 'medium' } : w))
       );
     }
   };
@@ -245,14 +259,16 @@ function Overview() {
   // ============================================================
 
   const renderWidget = (widget) => {
+    const commonProps = {
+      widget,
+      onUpdate: (newConfig) => handleUpdateWidget(widget.id, newConfig),
+    };
+
     switch (widget.type) {
       case 'notes':
-        return (
-          <NotesWidget
-            widget={widget}
-            onUpdate={(newConfig) => handleUpdateWidget(widget.id, newConfig)}
-          />
-        );
+        return <NotesWidget {...commonProps} />;
+      case 'docker-mini':
+        return <DockerMiniWidget {...commonProps} />;
       default:
         return (
           <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
@@ -310,18 +326,22 @@ function Overview() {
                 return (
                   <Grid
                     key={widgetKey}
+                    id={`widget-${widget.id}`}
                     size={{ xs: 12, sm: gridSize.sm, md: gridSize.md }}
                     data-size={widget.size}
+                    sx={{ pb: 2 }}
                   >
                     <SortableWidget id={widget.id} disabled={!editMode}>
                       <WidgetCard
                         widgetId={widget.id}
                         widgetName={widget.name}
                         widgetSize={widget.size}
+                        widgetConfig={widget.config}
                         onEdit={() => handleEditConfig(widget)}
                         onDelete={() => handleDeleteWidget(widget.id, widget.name)}
                         onDuplicate={() => handleDuplicateWidget(widget)}
                         onResize={(newSize) => handleResizeWidget(widget.id, newSize)}
+                        onUpdateConfig={(newConfig) => handleUpdateWidget(widget.id, newConfig)}
                       >
                         {renderWidget(widget)}
                       </WidgetCard>
@@ -357,10 +377,12 @@ function Overview() {
                   widgetId={activeWidget.id}
                   widgetName={activeWidget.name}
                   widgetSize={activeWidget.size}
+                  widgetConfig={activeWidget.config}
                   onEdit={() => {}}
                   onDelete={() => {}}
                   onDuplicate={() => {}}
                   onResize={() => {}}
+                  onUpdateConfig={() => {}}
                 >
                   {renderWidget(activeWidget)}
                 </WidgetCard>
@@ -378,11 +400,19 @@ function Overview() {
         </Alert>
       )}
 
+      {/* OKNO WYBORU TYPU WIDGETU */}
+      <WidgetSelectionDialog
+        open={selectionOpen}
+        onClose={() => setSelectionOpen(false)}
+        onSelect={handleTypeSelect}
+      />
+
+      {/* OKNO FORMULARZA KONFIGURACJI - teraz przyjmuje wybrany typ */}
       <WidgetFormDialog
         open={addWidgetOpen}
         onClose={() => setAddWidgetOpen(false)}
         onSave={handleAddWidget}
-        widgetType="notes"
+        widgetType={selectedType}
       />
 
       <EditWidgetDialog

@@ -7,45 +7,76 @@ import {
   TextField,
   Button,
   Box,
-  FormHelperText,
-  MenuItem
+  MenuItem,
+  CircularProgress
 } from '@mui/material';
 import { WIDGET_SCHEMAS, validateWidgetConfig, getDefaultConfig } from '../widgets/widgetSchemas';
+// Dodaj import API
+import { getEndpoints } from '../services/api'; 
 
 function WidgetFormDialog({ open, onClose, onSave, widgetType, initialData = null }) {
   const schema = WIDGET_SCHEMAS[widgetType];
   const [name, setName] = useState('');
   const [config, setConfig] = useState({});
   const [errors, setErrors] = useState({});
+  
+  // Stan na dynamiczne opcje (np. lista endpointów)
+  const [dynamicOptions, setDynamicOptions] = useState({});
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
   useEffect(() => {
     if (initialData) {
-      // Edycja - załaduj istniejące dane
       setName(initialData.name);
       setConfig(initialData.config);
     } else {
-      // Nowy widget - użyj domyślnych wartości
-      setName(schema.label);
+      setName(schema?.label || '');
       setConfig(getDefaultConfig(widgetType));
     }
     setErrors({});
+    setDynamicOptions({}); // Reset opcji przy zmianie
+
+    // Logika pobierania danych zależna od typu widgetu
+    if (open && widgetType === 'docker-mini') {
+      fetchEndpoints();
+    }
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData, widgetType, schema, open]);
 
+  const fetchEndpoints = async () => {
+    setLoadingOptions(true);
+    try {
+      const res = await getEndpoints();
+      const options = res.data.map(ep => ({
+        value: ep.id,
+        label: `${ep.name} (ID: ${ep.id})`
+      }));
+      
+      setDynamicOptions(prev => ({ ...prev, endpointId: options }));
+
+      // Jeśli to nowy widget i nie ma wybranego endpointa, wybierz pierwszy z listy
+      if (!initialData && options.length > 0) {
+        setConfig(prev => ({ ...prev, endpointId: options[0].value }));
+      }
+    } catch (err) {
+      console.error('Failed to load endpoints', err);
+      // Fallback: pozwól wpisać ręcznie w razie błędu? 
+      // Tutaj po prostu zostawiamy pustą listę.
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
   const handleSave = () => {
-    // Walidacja
     const validation = validateWidgetConfig(widgetType, config);
-    
     if (!validation.valid) {
       setErrors(validation.errors);
       return;
     }
-
     if (!name.trim()) {
       setErrors({ name: 'Nazwa jest wymagana' });
       return;
     }
-
-    // Zapisz
     onSave({
       type: widgetType,
       name: name.trim(),
@@ -56,22 +87,19 @@ function WidgetFormDialog({ open, onClose, onSave, widgetType, initialData = nul
   const renderField = (field) => {
     const value = config[field.name] ?? (field.default || '');
     
-    // Sprawdź warunkowe wyświetlanie
     if (field.showIf && typeof field.showIf === 'function') {
       if (!field.showIf(config)) return null;
     }
-    
+
     const handleChange = (newValue) => {
       setConfig(prev => ({ ...prev, [field.name]: newValue }));
-      // Wyczyść błąd dla tego pola
       if (errors[field.name]) {
-        setErrors(prev => {
-          const next = { ...prev };
-          delete next[field.name];
-          return next;
-        });
+        setErrors(prev => { const n = { ...prev }; delete n[field.name]; return n; });
       }
     };
+
+    // Sprawdź czy mamy dynamiczne opcje dla tego pola, jeśli nie - użyj tych ze schematu
+    const fieldOptions = dynamicOptions[field.name] || field.options || [];
 
     switch (field.type) {
       case 'select':
@@ -86,19 +114,22 @@ function WidgetFormDialog({ open, onClose, onSave, widgetType, initialData = nul
             error={!!errors[field.name]}
             helperText={errors[field.name] || field.helperText}
             required={field.required}
+            disabled={loadingOptions && !fieldOptions.length && field.name === 'endpointId'}
             sx={{ mb: 2 }}
           >
-            {field.options.map((option) => (
-              <MenuItem 
-                key={option.value} 
-                value={option.value}
-              >
+            {fieldOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
                 {option.label}
               </MenuItem>
             ))}
+            {/* Wyświetl loading wewnątrz listy jeśli pusta */}
+            {field.name === 'endpointId' && loadingOptions && (
+              <MenuItem disabled><CircularProgress size={20} /></MenuItem>
+            )}
           </TextField>
         );
       
+      // ... (reszta case'ów: textarea, number, text - bez zmian)
       case 'textarea':
         return (
           <TextField
@@ -109,35 +140,25 @@ function WidgetFormDialog({ open, onClose, onSave, widgetType, initialData = nul
             label={field.label}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder={field.placeholder}
             error={!!errors[field.name]}
             helperText={errors[field.name] || field.helperText}
-            required={field.required}
             sx={{ mb: 2 }}
           />
         );
-      
       case 'number':
         return (
-          <TextField
+           <TextField
             key={field.name}
             fullWidth
             type="number"
             label={field.label}
             value={value}
             onChange={(e) => handleChange(Number(e.target.value))}
-            inputProps={{
-              min: field.min,
-              max: field.max,
-            }}
             error={!!errors[field.name]}
             helperText={errors[field.name] || field.helperText}
-            required={field.required}
             sx={{ mb: 2 }}
           />
         );
-      
-      case 'text':
       default:
         return (
           <TextField
@@ -146,19 +167,15 @@ function WidgetFormDialog({ open, onClose, onSave, widgetType, initialData = nul
             label={field.label}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder={field.placeholder}
             error={!!errors[field.name]}
             helperText={errors[field.name] || field.helperText}
-            required={field.required}
             sx={{ mb: 2 }}
           />
         );
     }
   };
 
-  if (!schema) {
-    return null;
-  }
+  if (!schema) return null;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -171,28 +188,18 @@ function WidgetFormDialog({ open, onClose, onSave, widgetType, initialData = nul
             fullWidth
             label="Nazwa wyświetlana"
             value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (errors.name) {
-                setErrors(prev => {
-                  const next = { ...prev };
-                  delete next.name;
-                  return next;
-                });
-              }
-            }}
+            onChange={(e) => setName(e.target.value)}
             error={!!errors.name}
             helperText={errors.name}
             required
             sx={{ mb: 3 }}
           />
-
           {schema.fields.map(renderField)}
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Anuluj</Button>
-        <Button onClick={handleSave} variant="contained">
+        <Button onClick={handleSave} variant="contained" disabled={loadingOptions}>
           {initialData ? 'Zapisz' : 'Dodaj'}
         </Button>
       </DialogActions>

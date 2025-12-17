@@ -4,7 +4,8 @@ const {
   getAllContainers, 
   restartContainer, 
   stopContainer,
-  startContainer 
+  startContainer,
+  getEndpoints
 } = require('../services/portainer');
 
 // GET /api/containers - lista wszystkich kontenerów
@@ -57,6 +58,17 @@ router.post('/:endpointId/:containerId/restart', async (req, res) => {
     const { endpointId, containerId } = req.params;
     const result = await restartContainer(endpointId, containerId);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/containers/endpoints - lista dostępnych środowisk
+// WAŻNE: Dodaj to PRZED trasami z parametrami (np. przed /:id...)
+router.get('/endpoints', async (req, res) => {
+  try {
+    const endpoints = await getEndpoints();
+    res.json(endpoints);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

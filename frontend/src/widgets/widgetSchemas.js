@@ -20,7 +20,7 @@ export const WIDGET_SCHEMAS = {
         default: 'note',
         options: [
           { value: 'note', label: 'Pojedyncza notatka Markdown' },
-          { value: 'notes-list', label: 'Lista notatek' },
+          { value: 'notes-list', label: 'Przeglądarka notatek (agregator)' },
           { value: 'todo-list', label: 'Lista TODO (checklist)' }
         ],
         helperText: 'Wybierz jak widget ma działać'
@@ -34,6 +34,51 @@ export const WIDGET_SCHEMAS = {
         max: 24,
         showIf: (config) => config.displayMode === 'note',
         helperText: 'Tylko dla trybu "Pojedyncza notatka"'
+      },
+      {
+        name: 'autoExpand',
+        label: 'Automatyczne rozwijanie',
+        type: 'select',
+        default: false,
+        options: [
+          { value: false, label: 'Nie - zwijaj długą treść (domyślne)' },
+          { value: true, label: 'Tak - zawsze pokazuj całą treść' }
+        ],
+        helperText: 'Gdy wyłączone, długa treść będzie zwinięta z przyciskiem "rozwiń"'
+      }
+    ]
+  },
+
+  'docker-mini': {
+    label: 'Docker Mini',
+    icon: 'dns',
+    description: 'Status kontenerów z wybranego endpointa',
+    fields: [
+      {
+        name: 'endpointId',
+        label: 'Endpoint Portainer',
+        type: 'select',      // Zmieniamy z 'number' na 'select'
+        required: true,
+        default: '',
+        options: [],         // Będzie wypełnione dynamicznie
+        helperText: 'Wybierz środowisko z listy'
+      },
+      {
+        name: 'containerFilter',
+        label: 'Filtr nazw (Regex)',
+        type: 'text',
+        default: '',
+        helperText: 'Opcjonalnie: np. "prod|db" aby filtrować listę',
+      },
+      {
+        name: 'showActions',
+        label: 'Pokaż akcje',
+        type: 'select',
+        default: true,
+        options: [
+          { value: true, label: 'Tak' },
+          { value: false, label: 'Nie' }
+        ]
       }
     ]
   },

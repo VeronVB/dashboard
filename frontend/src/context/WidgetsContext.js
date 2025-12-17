@@ -45,10 +45,23 @@ export function WidgetsProvider({ children }) {
     }
   };
 
-  const addWidget = async (type, name, config) => {
+  /**
+   * Dodaje nowy widget
+   * @param {string} type - typ widgetu (np. 'notes')
+   * @param {string} name - nazwa widgetu
+   * @param {object} config - konfiguracja widgetu
+   * @param {object} options - opcje dodatkowe
+   * @param {number} options.targetTabId - ID zakładki docelowej (domyślnie activeTabId)
+   * @param {string} options.size - rozmiar widgetu: 'small' | 'medium' | 'large' (domyślnie 'medium')
+   */
+  const addWidget = async (type, name, config, options = {}) => {
     try {
-      if (!activeTabId) throw new Error("Nie wybrano zakładki");
-      const res = await createWidget({ type, name, config, tab_id: activeTabId });
+      const tabId = options.targetTabId || activeTabId;
+      const size = options.size || 'medium';
+      
+      if (!tabId) throw new Error("Nie wybrano zakładki");
+      
+      const res = await createWidget({ type, name, config, tab_id: tabId, size });
       setWidgets(prev => [...prev, res.data]);
       return { success: true, widget: res.data };
     } catch (err) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -10,7 +10,8 @@ import {
   ListItemText,
   alpha,
   ButtonGroup,
-  Tooltip
+  Tooltip,
+  Collapse
 } from '@mui/material';
 import {
   MoreVert as MoreIcon,
@@ -20,26 +21,96 @@ import {
   DragIndicator as DragIcon,
   ViewColumn as SmallIcon,
   ViewDay as MediumIcon,
-  ViewWeek as LargeIcon
+  ViewWeek as LargeIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { useEditMode } from '../context/EditModeContext';
 import { WIDGET_SIZE_LABELS } from '../utils/widgetSizeHelper';
 
+// ============================================================
+// KONFIGURACJA WYSOKOŚCI
+// Zmień tę wartość aby dostosować domyślną wysokość widgetu
+// ============================================================
+const DEFAULT_COLLAPSED_HEIGHT = 210 // px - wysokość zwiniętego widgetu
+const EDIT_MODE_HEADER_HEIGHT = 50;   // px - wysokość headera w edit mode
+
 /**
- * WidgetCard - wrapper z edit mode overlay i resize
+ * WidgetCard - wrapper z edit mode overlay, resize i collapse/expand
  */
 function WidgetCard({ 
   children, 
   widgetId,
   widgetName,
   widgetSize = 'medium',
+  widgetConfig = {},
   onEdit, 
   onDelete, 
   onDuplicate,
-  onResize
+  onResize,
+  onUpdateConfig
 }) {
   const { editMode } = useEditMode();
   const [menuAnchor, setMenuAnchor] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [needsExpand, setNeedsExpand] = useState(false);
+  const contentRef = useRef(null);
+
+  // Sprawdź czy autoExpand jest włączone w konfiguracji
+  const autoExpand = widgetConfig?.autoExpand ?? false;
+
+  // Przywróć stan isExpanded z konfiguracji przy renderze
+  useEffect(() => {
+    if (widgetConfig?.isExpanded !== undefined && !autoExpand) {
+      setIsExpanded(widgetConfig.isExpanded);
+    }
+  }, [widgetConfig?.isExpanded, autoExpand]);
+
+  // Jeśli autoExpand - zawsze rozwinięty
+  useEffect(() => {
+    if (autoExpand) {
+      setIsExpanded(true);
+      setNeedsExpand(false);
+    }
+  }, [autoExpand]);
+
+  // ResizeObserver do wykrywania czy treść przekracza limit
+  // Działa poprawnie nawet gdy dane ładują się asynchronicznie
+  useLayoutEffect(() => {
+    if (autoExpand) {
+      setNeedsExpand(false);
+      return;
+    }
+
+    const checkHeight = () => {
+      if (contentRef.current) {
+        const contentHeight = contentRef.current.scrollHeight;
+        setNeedsExpand(contentHeight > DEFAULT_COLLAPSED_HEIGHT);
+      }
+    };
+
+    // Sprawdź natychmiast
+    checkHeight();
+
+    // Sprawdź po krótkim opóźnieniu (dla pewności że DOM się wyrenderował)
+    const timeoutId = setTimeout(checkHeight, 100);
+
+    // Obserwuj zmiany rozmiaru (np. gdy załadują się dane)
+    let resizeObserver;
+    if (contentRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        checkHeight();
+      });
+      resizeObserver.observe(contentRef.current);
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [autoExpand, children, editMode]); // editMode jako dependency!
 
   const handleMenuOpen = (event) => {
     event.stopPropagation();
@@ -69,18 +140,33 @@ function WidgetCard({
     onResize?.(size);
   };
 
+  const handleToggleExpand = (e) => {
+    e.stopPropagation();
+    const newExpanded = !isExpanded;
+    setIsExpanded(newExpanded);
+    
+    // Zapisz stan w bazie przez onUpdateConfig
+    if (onUpdateConfig) {
+      onUpdateConfig({ ...widgetConfig, isExpanded: newExpanded });
+    }
+  };
+
+  // Oblicz wysokość contentu
+  const contentMaxHeight = autoExpand || isExpanded 
+    ? 'none' 
+    : `${DEFAULT_COLLAPSED_HEIGHT}px`;
+
   return (
     <Card
       sx={{
         position: 'relative',
-        minHeight: '100%',
-        height: '100%',
         transition: 'all 0.3s ease',
         border: editMode ? 2 : 1,
         borderColor: editMode ? 'warning.main' : 'divider',
         boxShadow: editMode ? `0 0 20px ${alpha('#ff9800', 0.3)}` : 1,
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'visible',
         '&:hover': {
           boxShadow: editMode ? `0 0 30px ${alpha('#ff9800', 0.5)}` : 3,
         }
@@ -94,7 +180,7 @@ function WidgetCard({
             top: 0,
             left: 0,
             right: 0,
-            height: 50,
+            height: EDIT_MODE_HEADER_HEIGHT,
             bgcolor: alpha('#ff9800', 0.1),
             borderBottom: 1,
             borderColor: 'warning.main',
@@ -203,16 +289,67 @@ function WidgetCard({
       {/* Widget Content */}
       <CardContent
         sx={{
-          pt: editMode ? 7 : 2,
-          pb: 2,
+          pt: editMode ? `${EDIT_MODE_HEADER_HEIGHT + 16}px` : 2,
+          pb: needsExpand && !autoExpand ? 4 : 2,
           overflow: 'hidden',
-          overflowY: 'auto',
           flex: 1,
-          wordBreak: 'break-word'
+          wordBreak: 'break-word',
+          position: 'relative'
         }}
       >
-        {children}
+        {/* Zewnętrzny wrapper - odpowiada za przycinanie (okno widoku) */}
+        <Box
+          sx={{
+            // minHeight gwarantuje jednakową wysokość nawet gdy content jest mały
+            minHeight: autoExpand ? 'auto' : `${DEFAULT_COLLAPSED_HEIGHT}px`,
+            maxHeight: contentMaxHeight,
+            overflow: 'hidden',
+            transition: 'max-height 300ms ease-in-out',
+            // Gradient fade gdy zwinięty i jest więcej treści
+            ...(needsExpand && !isExpanded && !autoExpand && {
+              maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)'
+            })
+          }}
+        >
+          <Box ref={contentRef}>
+            {children}
+          </Box>
+        </Box>
       </CardContent>
+
+      {/* Expand/Collapse Button - tylko gdy treść przekracza limit i nie jest autoExpand */}
+      {needsExpand && !autoExpand && (
+        <Tooltip title={isExpanded ? 'Zwiń' : 'Rozwiń'}>
+          <IconButton
+            onClick={handleToggleExpand}
+            sx={{
+              position: 'absolute',
+              bottom: -16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              bgcolor: 'background.paper',
+              border: 1,
+              borderColor: 'divider',
+              boxShadow: 2,
+              width: 32,
+              height: 32,
+              zIndex: 20,
+              transition: 'all 200ms ease',
+              '&:hover': {
+                bgcolor: 'action.hover',
+                transform: 'translateX(-50%) scale(1.1)'
+              }
+            }}
+          >
+            {isExpanded ? (
+              <ExpandLessIcon fontSize="small" />
+            ) : (
+              <ExpandMoreIcon fontSize="small" />
+            )}
+          </IconButton>
+        </Tooltip>
+      )}
 
       {/* Edit Menu */}
       <Menu
@@ -248,3 +385,4 @@ function WidgetCard({
 }
 
 export default WidgetCard;
+

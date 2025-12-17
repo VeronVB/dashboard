@@ -1,148 +1,260 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   List,
   ListItem,
   ListItemText,
+  ListItemIcon,
   IconButton,
   Typography,
-  Collapse,
-  Divider,
-  Button
+  Button,
+  FormControl,
+  Select,
+  MenuItem,
+  Chip,
+  Tooltip,
+  Divider // <--- Dodano Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
-  Delete as DeleteIcon,
-  Edit as EditIcon
+  Notes as NoteIcon,
+  OpenInNew as GoToIcon,
+  Delete as DeleteIcon // <--- Dodano import DeleteIcon
 } from '@mui/icons-material';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import NoteEditorModal from './NoteEditorModal';
+import { useWidgets } from '../context/WidgetsContext';
+
+// ============================================================
+// KONFIGURACJA
+// ============================================================
+const MAX_TITLE_LENGTH = 40;
+const MAX_PREVIEW_LENGTH = 60;
+const MIN_WIDGET_HEIGHT = 208;
 
 /**
- * NotesList - Lista notatek
- * displayMode: 'notes-list'
+ * NotesList - Agregator wszystkich notatek SingleNote z tabów
  */
-function NotesList({ notes, onUpdate }) {
-  const [expanded, setExpanded] = useState({});
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
+function NotesList({ onUpdate }) {
+  // Dodano removeWidget z contextu
+  const { widgets, tabs, activeTabId, setActiveTabId, addWidget, removeWidget } = useWidgets();
+  
+  const [selectedTabId, setSelectedTabId] = useState(activeTabId);
 
-  const toggleExpand = (id) => {
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  // Filtruj widgety
+  const allNotes = useMemo(() => {
+    return widgets.filter(w => 
+      w.type === 'notes' && 
+      w.config?.displayMode === 'note'
+    );
+  }, [widgets]);
 
-  const handleAdd = () => {
-    setEditingNote(null);
-    setEditorOpen(true);
-  };
+  // Notatki z wybranego taba
+  const notesInSelectedTab = useMemo(() => {
+    return allNotes
+      .filter(w => w.tab_id === selectedTabId)
+      .sort((a, b) => a.position - b.position);
+  }, [allNotes, selectedTabId]);
 
-  const handleEdit = (note) => {
-    setEditingNote(note);
-    setEditorOpen(true);
-  };
+  // Statystyki
+  const notesCountByTab = useMemo(() => {
+    const counts = {};
+    tabs.forEach(tab => {
+      counts[tab.id] = allNotes.filter(w => w.tab_id === tab.id).length;
+    });
+    return counts;
+  }, [allNotes, tabs]);
 
-  const handleDelete = (id) => {
-    if (window.confirm('Usunąć tę notatkę?')) {
-      onUpdate(notes.filter(n => n.id !== id));
-    }
-  };
-
-  const handleSave = (content) => {
-    if (editingNote) {
-      // Edycja
-      onUpdate(notes.map(n => 
-        n.id === editingNote.id 
-          ? { ...n, content, updatedAt: new Date().toISOString() }
-          : n
-      ));
-    } else {
-      // Nowa notatka
-      const newNote = {
-        id: Date.now(),
-        content,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      onUpdate([...notes, newNote]);
-    }
-    setEditorOpen(false);
-  };
-
+  // Pobierz tytuł
   const getTitle = (content) => {
+    if (!content || content.trim() === '') return 'Pusta notatka';
     const firstLine = content.split('\n')[0];
-    return firstLine.replace(/^#+\s*/, '').substring(0, 50) || 'Bez tytułu';
+    const cleanTitle = firstLine.replace(/^#+\s*/, '').trim();
+    if (cleanTitle.length > MAX_TITLE_LENGTH) return cleanTitle.substring(0, MAX_TITLE_LENGTH) + '...';
+    return cleanTitle || 'Bez tytułu';
+  };
+
+  // Pobierz podgląd
+  const getPreview = (content) => {
+    if (!content || content.trim() === '') return 'Brak treści';
+    const lines = content.split('\n');
+    const previewLine = lines.slice(1).find(line => line.trim() !== '') || '';
+    const cleanPreview = previewLine.replace(/[#*_`>\[\]]/g, '').trim();
+    if (cleanPreview.length > MAX_PREVIEW_LENGTH) return cleanPreview.substring(0, MAX_PREVIEW_LENGTH) + '...';
+    return cleanPreview || 'Brak treści';
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pl-PL', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  const handleAddNote = async () => {
+    const result = await addWidget(
+      'notes', 
+      'Nowa notatka', 
+      { displayMode: 'note', fontSize: 14, content: '', autoExpand: false },
+      { targetTabId: selectedTabId, size: 'small' }
+    );
+
+    if (result.success) {
+      if (selectedTabId !== activeTabId) setActiveTabId(selectedTabId);
+      setTimeout(() => scrollToWidgetAndHighlight(result.widget.id, true), 100);
+    }
+  };
+
+  const handleGoToNote = (widget) => {
+    if (widget.tab_id !== activeTabId) {
+      setActiveTabId(widget.tab_id);
+      setTimeout(() => scrollToWidgetAndHighlight(widget.id, false), 150);
+    } else {
+      scrollToWidgetAndHighlight(widget.id, false);
+    }
+  };
+
+  // --- NOWA FUNKCJA USUWANIA ---
+  const handleDeleteNote = async (e, widget) => {
+    e.stopPropagation(); // Ważne: żeby nie triggerować przejścia do notatki (onClick na ListItem)
+    
+    if (window.confirm(`Czy na pewno usunąć notatkę "${widget.name}"?`)) {
+      await removeWidget(widget.id);
+    }
+  };
+
+  const scrollToWidgetAndHighlight = (widgetId, openEditor = false) => {
+    const element = document.getElementById(`widget-${widgetId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('widget-highlight');
+      setTimeout(() => element.classList.remove('widget-highlight'), 2000);
+      if (openEditor) {
+        setTimeout(() => {
+          const editButton = element.querySelector('[data-edit-button="true"]');
+          if (editButton) editButton.click();
+        }, 500);
+      }
+    }
   };
 
   return (
-    <Box>
-      {/* Header z przyciskiem dodaj */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="subtitle2" color="text.secondary">
-          Notatki ({notes.length})
-        </Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={handleAdd}>
+    <Box sx={{ minHeight: MIN_WIDGET_HEIGHT }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 1, flexWrap: 'wrap' }}>
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <Select
+            value={selectedTabId}
+            onChange={(e) => setSelectedTabId(e.target.value)}
+            displayEmpty
+          >
+            {tabs.map(tab => (
+              <MenuItem key={tab.id} value={tab.id}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {tab.name}
+                  <Chip label={notesCountByTab[tab.id] || 0} size="small" sx={{ height: 20, fontSize: '0.7rem' }}/>
+                </Box>
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={handleAddNote}>
           Dodaj
         </Button>
       </Box>
 
-      {/* Lista notatek */}
-      {notes.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-          Brak notatek. Kliknij "Dodaj" aby utworzyć pierwszą.
-        </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        {notesInSelectedTab.length} {notesInSelectedTab.length === 1 ? 'notatka' : 'notatek'} w tej zakładce
+      </Typography>
+
+      {notesInSelectedTab.length === 0 ? (
+        <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+          <NoteIcon sx={{ fontSize: 48, opacity: 0.3, mb: 1 }} />
+          <Typography variant="body2">Brak notatek w tej zakładce</Typography>
+          <Typography variant="caption">Kliknij "Dodaj" aby utworzyć pierwszą</Typography>
+        </Box>
       ) : (
-        <List disablePadding>
-          {notes.map((note, index) => (
-            <React.Fragment key={note.id}>
-              {index > 0 && <Divider />}
-              <ListItem
-                disablePadding
-                sx={{ flexDirection: 'column', alignItems: 'stretch' }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', p: 1 }}>
-                  <IconButton size="small" onClick={() => toggleExpand(note.id)}>
-                    {expanded[note.id] ? <CollapseIcon /> : <ExpandIcon />}
-                  </IconButton>
+        <List disablePadding sx={{ mx: -1 }}>
+          {notesInSelectedTab.map((widget) => (
+            <ListItem
+              key={widget.id}
+              sx={{
+                borderRadius: 1,
+                mb: 0.5,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                '&:hover': { bgcolor: 'action.hover' }
+              }}
+              // Kliknięcie w cały wiersz przenosi do notatki
+              onClick={() => handleGoToNote(widget)}
+              
+              // --- SEKCJA AKCJI PO PRAWEJ STRONIE ---
+              secondaryAction={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   
-                  <ListItemText
-                    primary={getTitle(note.content)}
-                    secondary={new Date(note.updatedAt).toLocaleString('pl-PL')}
-                    sx={{ flex: 1, cursor: 'pointer' }}
-                    onClick={() => toggleExpand(note.id)}
-                  />
-
-                  <IconButton size="small" onClick={() => handleEdit(note)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" onClick={() => handleDelete(note.id)} color="error">
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  {/* Przycisk Przejdź */}
+                  <Tooltip title="Przejdź do notatki">
+                    <IconButton 
+                      edge="end" 
+                      size="small" 
+                      onClick={() => handleGoToNote(widget)}
+                    >
+                      <GoToIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  
+                  {/* Separator */}
+                  <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20, alignSelf: 'center' }} />
+                  
+                  {/* Przycisk Usuń */}
+                  <Tooltip title="Usuń notatkę">
+                    <IconButton 
+                      edge="end" 
+                      size="small" 
+                      onClick={(e) => handleDeleteNote(e, widget)}
+                      sx={{ 
+                        color: 'text.disabled', 
+                        '&:hover': { color: 'error.main' } 
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
-
-                <Collapse in={expanded[note.id]} timeout="auto">
-                  <Box sx={{ p: 2, bgcolor: 'action.hover', fontSize: '0.9em' }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {note.content}
-                    </ReactMarkdown>
+              }
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <NoteIcon fontSize="small" color="primary" />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {getTitle(widget.config?.content)}
+                  </Typography>
+                }
+                secondary={
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                      {getPreview(widget.config?.content)}
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      {formatDate(widget.created_at)}
+                    </Typography>
                   </Box>
-                </Collapse>
-              </ListItem>
-            </React.Fragment>
+                }
+              />
+            </ListItem>
           ))}
         </List>
       )}
 
-      {/* Editor Modal */}
-      <NoteEditorModal
-        open={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        onSave={handleSave}
-        initialContent={editingNote?.content || ''}
-        title={editingNote ? 'Edytuj notatkę' : 'Nowa notatka'}
-      />
+      <style>{`
+        @keyframes widgetHighlight {
+          0% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); }
+          50% { box-shadow: 0 0 20px 10px rgba(255, 152, 0, 0.4); }
+          100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); }
+        }
+        .widget-highlight { animation: widgetHighlight 1.5s ease-out; }
+      `}</style>
     </Box>
   );
 }

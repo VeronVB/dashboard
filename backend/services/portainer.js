@@ -83,9 +83,26 @@ async function restartContainer(endpointId, containerId) {
   }
 }
 
+// Pobieramy endpointy
+async function getEndpoints() {
+  try {
+    const { data } = await portainerAPI.get('/endpoints');
+    // Zwracamy tylko to co potrzebne do listy
+    return data.map(endpoint => ({
+      id: endpoint.Id,
+      name: endpoint.Name,
+      type: endpoint.Type
+    }));
+  } catch (error) {
+    console.error('Get Endpoints error:', error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getAllContainers,
   restartContainer,
   stopContainer,
   startContainer,
+  getEndpoints,
 };

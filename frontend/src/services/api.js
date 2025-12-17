@@ -13,6 +13,7 @@ export const getStatus = () => api.get('/metrics/status');
 
 // Kontenery
 export const getContainers = () => api.get('/containers');
+export const getEndpoints = () => api.get('/containers/endpoints');
 
 export const startContainer = (endpointId, containerId) => 
   api.post(`/containers/${endpointId}/${containerId}/start`);
