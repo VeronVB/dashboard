@@ -10,6 +10,7 @@ const uploadsRoutes = require('./routes/uploads');
 const backupRoutes = require('./routes/backup');
 const widgetsRoutes = require('./routes/widgets');
 const tabsRoutes = require('./routes/tabs');
+const qbittorrentRoutes = require('./routes/qbittorrent');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +27,7 @@ app.use('/api/uploads', uploadsRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/widgets', widgetsRoutes);
 app.use('/api/tabs', tabsRoutes);
+app.use('/api/qbittorrent', qbittorrentRoutes);
 
 // Static serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
